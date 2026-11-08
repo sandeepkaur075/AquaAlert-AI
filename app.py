@@ -61,21 +61,62 @@ page = st.sidebar.radio(
 )
 
 # Home page
+# Home page
 if page == "Home":
 
     st.header("Project Overview")
 
-    col1, col2 = st.columns(2)
+    df = pd.read_csv(
+        DATA_DIR / "floodnet_featured.csv"
+    )
+
+    col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.metric("Dataset Records", "3,581")
+        st.metric(
+            "Dataset Records",
+            f"{len(df):,}"
+        )
 
     with col2:
-        st.metric("ML Models", "2")
+        st.metric(
+            "Average Flood Depth",
+            f"{df['Maximum Flood Depth (inches)'].mean():.2f} inches"
+        )
 
-    st.write(
-        "AquaAlert AI uses historical FloodNet sensor records "
-        "to study waterlogging severity and estimate flood depth."
+    with col3:
+        st.metric(
+            "Maximum Flood Depth",
+            f"{df['Maximum Flood Depth (inches)'].max():.2f} inches"
+        )
+
+    st.divider()
+
+    st.subheader("Flood Severity Distribution")
+
+    severity_counts = (
+        df["Flood Severity"]
+        .value_counts()
+        .reindex(["Low", "Moderate", "High", "Severe"])
+        .fillna(0)
+    )
+
+    st.bar_chart(severity_counts)
+
+    st.divider()
+
+    st.subheader("Maximum Flood Depth Distribution")
+
+    st.bar_chart(
+        df["Maximum Flood Depth (inches)"]
+        .value_counts(bins=20)
+        .sort_index()
+    )
+
+    st.caption(
+        "Severity categories are project-defined using recorded "
+        "maximum flood depth. This dashboard analyses historical "
+        "events; it does not forecast future flooding."
     )
 
 # Prediction inputs
