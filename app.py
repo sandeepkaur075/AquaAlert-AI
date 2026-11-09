@@ -4,19 +4,19 @@ import pandas as pd
 import joblib
 from pathlib import Path
 
-# Page configuration
+# Page Configuration
 st.set_page_config(
     page_title="AquaAlert AI",
     page_icon="🌊",
     layout="wide"
 )
 
-# Project paths
+# Project Paths
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_DIR = BASE_DIR / "models"
 DATA_DIR = BASE_DIR / "data" / "processed"
 
-# Load trained models
+# Load Models
 @st.cache_resource
 def load_models():
     rf_bundle = joblib.load(
@@ -36,7 +36,18 @@ except Exception as e:
     st.error(f"Model loading failed: {e}")
     st.stop()
 
-# Dashboard heading
+
+# Load Dataset
+try:
+    df = pd.read_csv(
+        DATA_DIR / "floodnet_featured.csv"
+    )
+except Exception as e:
+    st.error(f"Dataset loading failed: {e}")
+    st.stop()
+
+
+# Dashboard Heading
 st.title("🌊 AquaAlert AI")
 st.subheader("Urban Waterlogging Severity Analysis")
 
@@ -46,29 +57,31 @@ st.write(
 )
 
 st.info(
-    "This project classifies recorded flood-event severity. "
+    "This project analyses recorded flood events. "
     "It does not forecast future flooding."
 )
 
 st.divider()
 
-# Sidebar
+
+# Sidebar Navigation
 st.sidebar.header("Navigation")
 
 page = st.sidebar.radio(
     "Select Dashboard",
-    ["Home", "Severity Prediction", "Flood Depth Estimation", "About"]
+    [
+        "Home",
+        "Severity Prediction",
+        "Flood Depth Estimation",
+        "About"
+    ]
 )
 
-# Home page
-# Home page
+
+# HOME PAGE
 if page == "Home":
 
     st.header("Project Overview")
-
-    df = pd.read_csv(
-        DATA_DIR / "floodnet_featured.csv"
-    )
 
     col1, col2, col3 = st.columns(3)
 
@@ -92,6 +105,7 @@ if page == "Home":
 
     st.divider()
 
+    # Chart 1: Severity Distribution
     st.subheader("Flood Severity Distribution")
 
     severity_counts = (
@@ -105,61 +119,97 @@ if page == "Home":
 
     st.divider()
 
+        # Chart 2: Flood Depth Distribution
     st.subheader("Maximum Flood Depth Distribution")
 
+    depth_bins = pd.cut(
+        df["Maximum Flood Depth (inches)"],
+        bins=20
+    ).value_counts().sort_index()
+
+    depth_chart = pd.DataFrame({
+        "Depth Range": depth_bins.index.astype(str),
+        "Number of Events": depth_bins.values
+    })
+
     st.bar_chart(
-        df["Maximum Flood Depth (inches)"]
-        .value_counts(bins=20)
+        depth_chart.set_index("Depth Range")
+    )
+
+    st.divider()
+        # Chart 3: Flood Events by Hour
+    st.subheader("Flood Events by Hour")
+
+    hourly_events = (
+        df["Flood Start Hour"]
+        .value_counts()
         .sort_index()
     )
 
-    st.caption(
-        "Severity categories are project-defined using recorded "
-        "maximum flood depth. This dashboard analyses historical "
-        "events; it does not forecast future flooding."
+    st.bar_chart(hourly_events)
+
+    st.divider()
+
+    # Chart 4: Average Flood Depth by Severity
+    st.subheader("Average Flood Depth by Severity")
+
+    average_depth = (
+        df.groupby("Flood Severity")
+           [ "Maximum Flood Depth (inches)"
+           ]
+        .mean()
+        .reindex(["Low", "Moderate", "High", "Severe"])
     )
 
-# Prediction inputs
-elif page in ["Severity Prediction", "Flood Depth Estimation"]:
+    st.bar_chart(average_depth)
+
+    st.divider()
+
+# PREDICTION PAGES
+elif page in [
+    "Severity Prediction",
+    "Flood Depth Estimation"
+]:
 
     st.header(page)
 
     st.write("Enter the event information below.")
 
-    sensor_options = ["Select Sensor"]
-
-    try:
-        df = pd.read_csv(
-            DATA_DIR / "floodnet_featured.csv"
-        )
-
-        sensor_options += sorted(
-            df["Sensor Name"].dropna().astype(str).unique().tolist()
-        )
-
-    except Exception:
-        st.error("Featured dataset could not be loaded.")
-        st.stop()
+    # Sensor Selection
+    sensor_options = sorted(
+        df["Sensor Name"]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
 
     sensor_name = st.selectbox(
         "Sensor Name",
         sensor_options
     )
 
-    sensor_id = st.selectbox(
-    "Sensor ID",
-    sorted(
+    sensor_id_options = sorted(
         df.loc[
-            df["Sensor Name"] == sensor_name,
+            df["Sensor Name"].astype(str) == sensor_name,
             "Sensor ID"
-        ].dropna().astype(str).unique().tolist()
+        ]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
     )
-)
-    
 
+    sensor_id = st.selectbox(
+        "Sensor ID",
+        sensor_id_options
+    )
+
+    # Date and Time Inputs
     col1, col2 = st.columns(2)
 
     with col1:
+
         hour = st.number_input(
             "Flood Start Hour",
             min_value=0,
@@ -175,6 +225,7 @@ elif page in ["Severity Prediction", "Flood Depth Estimation"]:
         )
 
     with col2:
+
         month = st.number_input(
             "Flood Start Month",
             min_value=1,
@@ -196,46 +247,60 @@ elif page in ["Severity Prediction", "Flood Depth Estimation"]:
 
     if predict_button:
 
-        if sensor_name == "Select Sensor":
-            st.warning("Please select a sensor.")
+        input_data = pd.DataFrame([{
+            "Flood Start Hour": hour,
+            "Flood Start Day": day,
+            "Flood Start Month": month,
+            "Flood Start Weekday": weekday,
+            "Sensor Name": sensor_name,
+            "Sensor ID": sensor_id
+        }])
+
+        if page == "Severity Prediction":
+
+            transformed_input = (
+                rf_bundle["preprocessor"].transform(
+                    input_data
+                )
+            )
+
+            prediction = (
+                rf_bundle["model"].predict(
+                    transformed_input
+                )[0]
+            )
+
+            st.success(
+                f"Predicted Flood Severity: {prediction}"
+            )
 
         else:
-            input_data = pd.DataFrame([{
-                "Flood Start Hour": hour,
-                "Flood Start Day": day,
-                "Flood Start Month": month,
-                "Flood Start Weekday": weekday,
-                "Sensor Name": sensor_name,
-                "Sensor ID": sensor_id
-            }])
 
-            if page == "Severity Prediction":
+            transformed_input = (
+                lr_bundle["preprocessor"].transform(
+                    input_data
+                )
+            )
 
-                prediction = rf_bundle["model"].predict(
-                    rf_bundle["preprocessor"].transform(input_data)
+            prediction = (
+                lr_bundle["model"].predict(
+                    transformed_input
                 )[0]
+            )
 
-                st.success(
-                    f"Predicted Flood Severity: {prediction}"
+            st.success(
+                f"Estimated Maximum Flood Depth: "
+                f"{prediction:.2f} inches"
+            )
+
+            if prediction < 0:
+                st.warning(
+                    "The model produced a negative depth estimate. "
+                    "This is outside the physically meaningful range."
                 )
 
-            else:
 
-                prediction = lr_bundle["model"].predict(
-                    lr_bundle["preprocessor"].transform(input_data)
-                )[0]
-
-                st.success(
-                    f"Estimated Maximum Flood Depth: {prediction:.2f} inches"
-                )
-
-                if prediction < 0:
-                    st.warning(
-                        "The model produced a negative depth estimate. "
-                        "This is outside the physically meaningful range."
-                    )
-
-# About page
+# ABOUT PAGE
 elif page == "About":
 
     st.header("About AquaAlert AI")
@@ -245,17 +310,19 @@ elif page == "About":
         "and Machine Learning algorithms."
     )
 
-    st.write("Models used:")
+    st.subheader("Models Used")
 
     st.write("- Random Forest Classifier")
     st.write("- Linear Regression")
 
-    st.write(
-        "The severity categories are project-defined using "
-        "maximum flood depth."
-    )
+    st.subheader("Severity Categories")
+
+    st.write("- Low: Below 4 inches")
+    st.write("- Moderate: 4 to below 12 inches")
+    st.write("- High: 12 to below 24 inches")
+    st.write("- Severe: 24 inches or above")
 
     st.warning(
-        "The model is experimental and should not be used "
-        "for real-world emergency decisions."
+        "This is an experimental academic project. "
+        "It should not be used for real-world emergency decisions."
     )
