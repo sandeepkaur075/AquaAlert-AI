@@ -184,6 +184,9 @@ M.Tech CSE – Data Science and Analytics
 
 [https://github.com/sandeepkaur075/AquaAlert-AI](https://github.com/sandeepkaur075/AquaAlert-AI)
 
+##linkedin profile-
+https://lnkd.in/p/g_rx6DCk
+
 ## Acknowledgement
 
 Dataset provided by NYC Open Data through the FloodNet project. 
