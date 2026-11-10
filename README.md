@@ -174,12 +174,11 @@ The detailed academic project report is available in this repository:
 
 `AquaAlert_Report.docx`
 
-## Author
+
 
 **Sandeep Kaur**  
 M.Tech CSE – Data Science and Analytics  
-Lovely Professional University, Punjab  
-Semester 1 – 2026
+
 
 ## GitHub Repository
 
@@ -187,4 +186,4 @@ Semester 1 – 2026
 
 ## Acknowledgement
 
-Dataset provided by NYC Open Data through the FloodNet project. This project was developed for academic purposes.
+Dataset provided by NYC Open Data through the FloodNet project. 
